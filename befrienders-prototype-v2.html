@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Befrienders KL · Volunteer Roster Prototype v2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+  body { margin: 0; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #FAF7F4; z-index: 9999; flex-direction: column; gap: 16px;
+  }
+  #loading .pulse {
+    width: 48px; height: 48px; border-radius: 12px; background: #D63B1F;
+    display: flex; align-items: center; justify-content: center;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.95); } }
+  #loading .text { color: #5A4F4A; font-size: 14px; }
+  #loading .sub { color: #8A7E78; font-size: 11px; }
+  /* Hide loading once React mounts */
+  #root:not(:empty) ~ #loading { display: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="loading">
+  <div class="pulse">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="white"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  </div>
+  <div class="text"><strong>Befrienders KL</strong> · Loading prototype</div>
+  <div class="sub">First load takes ~5–15 seconds (compiling JSX in browser)</div>
+</div>
+
+<script type="text/babel" data-presets="react" data-type="module">
+
+// Pull React hooks from global
+const { useState, useMemo, useEffect, Fragment } = React;
+const { createElement } = React;
+
+// Pull Recharts from global
+const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } = Recharts;
+
+// Inline Lucide icons (subset). Each takes {size, color, fill, className, style, ...}
+const ICON_DEFAULT_PROPS = { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
+const Icon = ({ size = 24, color, fill, paths, className, style, ...rest }) => (
+  <svg {...ICON_DEFAULT_PROPS} width={size} height={size} stroke={color || 'currentColor'} fill={fill || 'none'} className={className} style={style} {...rest}>
+    {paths.map((p, i) => p)}
+  </svg>
+);
+const makeIcon = (paths) => (props) => <Icon paths={paths} {...props} />;
+
+const Calendar = makeIcon([
+  <rect key="r" x="3" y="4" width="18" height="18" rx="2" ry="2" />,
+  <line key="l1" x1="16" y1="2" x2="16" y2="6" />,
+  <line key="l2" x1="8" y1="2" x2="8" y2="6" />,
+  <line key="l3" x1="3" y1="10" x2="21" y2="10" />,
+]);
+const Users = makeIcon([
+  <path key="p" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />,
+  <circle key="c" cx="9" cy="7" r="4" />,
+  <path key="p2" d="M22 21v-2a4 4 0 0 0-3-3.87" />,
+  <path key="p3" d="M16 3.13a4 4 0 0 1 0 7.75" />,
+]);
+const AlertTriangle = makeIcon([
+  <path key="p" d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />,
+  <line key="l1" x1="12" y1="9" x2="12" y2="13" />,
+  <line key="l2" x1="12" y1="17" x2="12.01" y2="17" />,
+]);
+const Clock = makeIcon([
+  <circle key="c" cx="12" cy="12" r="10" />,
+  <polyline key="p" points="12 6 12 12 16 14" />,
+]);
+const Shield = makeIcon([<path key="p" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />]);
+const BarChart3 = makeIcon([
+  <path key="p1" d="M3 3v18h18" />,
+  <path key="p2" d="M8 17V9" />,
+  <path key="p3" d="M13 17V5" />,
+  <path key="p4" d="M18 17v-3" />,
+]);
+const Bell = makeIcon([
+  <path key="p1" d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />,
+  <path key="p2" d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />,
+]);
+const Settings = makeIcon([
+  <circle key="c" cx="12" cy="12" r="3" />,
+  <path key="p" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />,
+]);
+const ChevronLeft = makeIcon([<polyline key="p" points="15 18 9 12 15 6" />]);
+const ChevronRight = makeIcon([<polyline key="p" points="9 18 15 12 9 6" />]);
+const Plus = makeIcon([
+  <line key="l1" x1="12" y1="5" x2="12" y2="19" />,
+  <line key="l2" x1="5" y1="12" x2="19" y2="12" />,
+]);
+const Check = makeIcon([<polyline key="p" points="20 6 9 17 4 12" />]);
+const X = makeIcon([
+  <line key="l1" x1="18" y1="6" x2="6" y2="18" />,
+  <line key="l2" x1="6" y1="6" x2="18" y2="18" />,
+]);
+const Search = makeIcon([
+  <circle key="c" cx="11" cy="11" r="8" />,
+  <line key="l" x1="21" y1="21" x2="16.65" y2="16.65" />,
+]);
+const Download = makeIcon([
+  <path key="p" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />,
+  <polyline key="p2" points="7 10 12 15 17 10" />,
+  <line key="l" x1="12" y1="15" x2="12" y2="3" />,
+]);
+const Megaphone = makeIcon([
+  <path key="p1" d="m3 11 18-5v12L3 14v-3z" />,
+  <path key="p2" d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />,
+]);
+const RefreshCw = makeIcon([
+  <polyline key="p1" points="23 4 23 10 17 10" />,
+  <polyline key="p2" points="1 20 1 14 7 14" />,
+  <path key="p" d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />,
+]);
+const FileText = makeIcon([
+  <path key="p1" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />,
+  <polyline key="p2" points="14 2 14 8 20 8" />,
+  <line key="l1" x1="16" y1="13" x2="8" y2="13" />,
+  <line key="l2" x1="16" y1="17" x2="8" y2="17" />,
+  <polyline key="l3" points="10 9 9 9 8 9" />,
+]);
+const AlertCircle = makeIcon([
+  <circle key="c" cx="12" cy="12" r="10" />,
+  <line key="l1" x1="12" y1="8" x2="12" y2="12" />,
+  <line key="l2" x1="12" y1="16" x2="12.01" y2="16" />,
+]);
+const CheckCircle2 = makeIcon([
+  <path key="p" d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />,
+  <polyline key="p2" points="22 4 12 14.01 9 11.01" />,
+]);
+const UserCheck = makeIcon([
+  <path key="p1" d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />,
+  <circle key="c" cx="8.5" cy="7" r="4" />,
+  <polyline key="p2" points="17 11 19 13 23 9" />,
+]);
+const Edit2 = makeIcon([<path key="p" d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />]);
+const TrendingUp = makeIcon([
+  <polyline key="p1" points="22 7 13.5 15.5 8.5 10.5 2 17" />,
+  <polyline key="p2" points="16 7 22 7 22 13" />,
+]);
+const Activity = makeIcon([<polyline key="p" points="22 12 18 12 15 21 9 3 6 12 2 12" />]);
+const Heart = makeIcon([<path key="p" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />]);
+const Star = makeIcon([<polygon key="p" points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />]);
+const Copy = makeIcon([
+  <rect key="r" x="9" y="9" width="13" height="13" rx="2" ry="2" />,
+  <path key="p" d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />,
+]);
+const Mail = makeIcon([
+  <path key="p" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />,
+  <polyline key="p2" points="22,6 12,13 2,6" />,
+]);
+
+
+// ===== DESIGN TOKENS =====
+const COLORS = {
+  primary: '#D63B1F',
+  primaryDark: '#A82C14',
+  primaryLight: '#F4E4DF',
+  amber: '#E8A33D',
+  amberLight: '#FBF1DD',
+  green: '#4A8B5C',
+  greenLight: '#E3EFE5',
+  red: '#C0392B',
+  redLight: '#F9E3E0',
+  ink: '#1F1A18',
+  inkSoft: '#5A4F4A',
+  inkMuted: '#8A7E78',
+  paper: '#FAF7F4',
+  paperWarm: '#F4EFEA',
+  card: '#FFFFFF',
+  border: '#E8DFD7',
+  borderSoft: '#F0E8E0',
+};
+
+// Block colour palette — assigned by index
+const BLOCK_PALETTE = [
+  { bg: '#FFF3E0', border: '#E8A33D', ink: '#7A4A0A' }, // amber
+  { bg: '#FBE8DD', border: '#D63B1F', ink: '#7A1F0F' }, // red-orange
+  { bg: '#E8DEF0', border: '#7B5BA1', ink: '#3D2A56' }, // purple
+  { bg: '#DFE5F0', border: '#3B5998', ink: '#1F2D4D' }, // navy
+  { bg: '#E0EFE3', border: '#4A8B5C', ink: '#1F4A2C' }, // green
+  { bg: '#F0E0E5', border: '#9B4565', ink: '#4A1F2D' }, // mauve
+];
+
+// ===== SEED DATA =====
+const NAMES = [
+  'Aisyah Rahman', 'Faiz Ibrahim', 'Nurul Hassan', 'Ahmad Razak', 'Siti Khadijah',
+  'Kamal Yusof', 'Zainab Mokhtar', 'Hafiz Abdullah', 'Liyana Daud', 'Rosli Bakar',
+  'Lim Wei Ming', 'Tan Mei Ling', 'Wong Chee Keong', 'Chong Siew Lan', 'Lee Kar Hou',
+  'Ng Pei Shan', 'Cheong Yi Xuan', 'Goh Hong Beng', 'Yap Sook Yee', 'Khoo Jia Wei',
+  'Siva Kumar', 'Kavitha Devi', 'Rajesh Pillai', 'Priya Subramaniam', 'Naveen Raj',
+  'Lakshmi Menon', 'Anand Krishnan', 'Meera Nair', 'Dinesh Iyer', 'Sangeeta Rao',
+  'Sarah Johnson', 'Michael Tan', 'Joanne Lim', 'David Chen', 'Rachel Wong',
+  'Andrew Goh', 'Emily Khoo', 'Daniel Ng', 'Vanessa Yap', 'Jonathan Lee',
+];
+
+const LANGUAGES = ['BM', 'EN', 'Mandarin', 'Cantonese', 'Tamil', 'Hokkien'];
+const SENIORITY_LEVELS = ['Trainee', 'Certified', 'Senior'];
+const STATUS_LEVELS = ['Active', 'On Leave', 'Inactive', 'Resigned'];
+
+// Default block library — admin-configurable
+const DEFAULT_BLOCKS = [
+  { id: 'B1', name: 'Late Night',   startHour: 0,  endHour: 6,  paletteIdx: 3 },
+  { id: 'B2', name: 'Early Morning', startHour: 6,  endHour: 10, paletteIdx: 0 },
+  { id: 'B3', name: 'Late Morning',  startHour: 10, endHour: 14, paletteIdx: 4 },
+  { id: 'B4', name: 'Afternoon',     startHour: 14, endHour: 18, paletteIdx: 1 },
+  { id: 'B5', name: 'Evening',       startHour: 18, endHour: 22, paletteIdx: 2 },
+  { id: 'B6', name: 'Night',         startHour: 22, endHour: 24, paletteIdx: 5 },
+];
+
+function generateVolunteers() {
+  return NAMES.map((name, idx) => {
+    const seed = idx * 7919 + 13;
+    const seniorityRoll = seed % 100;
+    const seniority = seniorityRoll < 25 ? 'Trainee' : seniorityRoll < 70 ? 'Certified' : 'Senior';
+    const statusRoll = (seed * 3) % 100;
+    const status = statusRoll < 80 ? 'Active' : statusRoll < 88 ? 'On Leave' : statusRoll < 95 ? 'Inactive' : 'Resigned';
+    const langCount = 1 + (seed % 3);
+    const langs = [];
+    for (let i = 0; i < langCount; i++) {
+      const lang = LANGUAGES[(seed + i * 31) % LANGUAGES.length];
+      if (!langs.includes(lang)) langs.push(lang);
+    }
+    if (!langs.includes('EN')) langs.push('EN');
+    const isSeniorOrCert = seniority !== 'Trainee';
+    const leaderEligible = isSeniorOrCert && (seed % 100) < 35;
+    return {
+      id: `V${String(idx + 1).padStart(3, '0')}`,
+      internalId: `BFKL-${2020 + (idx % 5)}-${String(idx * 3 + 142).padStart(4, '0')}`,
+      fullName: name,
+      preferredName: name.split(' ')[0],
+      email: name.toLowerCase().replace(/\s+/g, '.') + '@example.com',
+      phone: `+60 1${(seed % 9) + 1}-${String((seed * 13) % 10000000).padStart(7, '0')}`,
+      emergencyContactName: 'Emergency Contact',
+      emergencyContactPhone: `+60 1${seed % 9}-${String((seed * 17) % 10000000).padStart(7, '0')}`,
+      languages: langs,
+      seniority,
+      status,
+      shiftLeaderEligible: leaderEligible,
+      joinedDate: `202${1 + (seed % 4)}-${String((seed % 12) + 1).padStart(2, '0')}-${String((seed % 28) + 1).padStart(2, '0')}`,
+      monthlyHourTarget: seniority === 'Trainee' ? 8 : 16,
+    };
+  });
+}
+
+function dateAddDays(d, days) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + days);
+  return r;
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function formatDateISO(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function formatDateLong(d) {
+  return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function generateAssignments(volunteers, blocks, weeksBack, weeksForward) {
+  // Assignment: { id, volunteerId, date (ISO), startHour, endHour, blockId|null }
+  const today = new Date('2026-05-09');
+  today.setHours(0, 0, 0, 0);
+  const startDate = dateAddDays(today, -weeksBack * 7);
+  const totalDays = (weeksBack + weeksForward) * 7;
+  const activeVols = volunteers.filter(v => v.status === 'Active');
+  
+  const assignments = [];
+  let id = 1;
+  
+  for (let dayOffset = 0; dayOffset < totalDays; dayOffset++) {
+    const date = dateAddDays(startDate, dayOffset);
+    const dateStr = formatDateISO(date);
+    const seed = dayOffset * 31 + 7;
+    
+    blocks.forEach((block, bIdx) => {
+      const blockSeed = seed + bIdx * 113;
+      const staffingRoll = blockSeed % 100;
+      let count;
+      // Late Night (B1) and Night (B6) tend to be sparser
+      const isNightBlock = block.startHour >= 22 || block.endHour <= 6;
+      if (isNightBlock) {
+        if (staffingRoll < 8) count = 0;
+        else if (staffingRoll < 22) count = 1;
+        else if (staffingRoll < 70) count = 2;
+        else count = 3;
+      } else {
+        if (staffingRoll < 3) count = 0;
+        else if (staffingRoll < 9) count = 1;
+        else if (staffingRoll < 55) count = 2;
+        else if (staffingRoll < 85) count = 3;
+        else count = 4;
+      }
+      
+      const used = new Set();
+      for (let i = 0; i < count; i++) {
+        const pickIdx = (blockSeed + i * 47 + dayOffset * 13) % activeVols.length;
+        let v = activeVols[pickIdx];
+        let attempts = 0;
+        while (used.has(v.id) && attempts < activeVols.length) {
+          v = activeVols[(pickIdx + attempts + 1) % activeVols.length];
+          attempts++;
+        }
+        if (used.has(v.id)) continue;
+        used.add(v.id);
+        assignments.push({
+          id: `A${String(id++).padStart(5, '0')}`,
+          volunteerId: v.id,
+          date: dateStr,
+          startHour: block.startHour,
+          endHour: block.endHour,
+          blockId: block.id,
+        });
+      }
+    });
+  }
+  
+  return assignments;
+}
+
+function generateDayLeads(volunteers, weeksBack, weeksForward) {
+  // One designated leader per day
+  const today = new Date('2026-05-09');
+  today.setHours(0, 0, 0, 0);
+  const startDate = dateAddDays(today, -weeksBack * 7);
+  const totalDays = (weeksBack + weeksForward) * 7;
+  const eligibleVols = volunteers.filter(v => v.status === 'Active' && v.shiftLeaderEligible);
+  
+  const leads = {};
+  for (let dayOffset = 0; dayOffset < totalDays; dayOffset++) {
+    const date = dateAddDays(startDate, dayOffset);
+    const dateStr = formatDateISO(date);
+    const seed = dayOffset * 31 + 7;
+    // ~20% of days have no lead assigned (gap to highlight)
+    if (seed % 100 < 18) continue;
+    const v = eligibleVols[seed % eligibleVols.length];
+    leads[dateStr] = v.id;
+  }
+  return leads;
+}
+
+function generateBroadcasts(assignments) {
+  const today = new Date('2026-05-09');
+  return [
+    { id: 'B001', date: formatDateISO(dateAddDays(today, -3)), startHour: 22, endHour: 24, status: 'resolved', firedAt: new Date(Date.now() - 86400000 * 3).toISOString(), respondedById: 'V005' },
+    { id: 'B002', date: formatDateISO(today),                  startHour: 0,  endHour: 6,  status: 'open',     firedAt: new Date(Date.now() - 7200000).toISOString() },
+    { id: 'B003', date: formatDateISO(dateAddDays(today, -7)), startHour: 18, endHour: 22, status: 'resolved', firedAt: new Date(Date.now() - 86400000 * 7).toISOString(), respondedById: 'V012' },
+  ];
+}
+
+function generateAuditLog() {
+  return [
+    { id: 'A001', when: new Date(Date.now() - 1800000).toISOString(), who: 'Manager', action: 'Edited assignment', detail: 'Aisyah R. → Tue 12 May, Evening block' },
+    { id: 'A002', when: new Date(Date.now() - 3600000).toISOString(), who: 'Manager', action: 'Published roster', detail: 'Week of 11 May 2026' },
+    { id: 'A003', when: new Date(Date.now() - 7200000).toISOString(), who: 'System', action: 'Auto-fired urgent broadcast', detail: 'Late Night 0-6 today — gap detected' },
+    { id: 'A004', when: new Date(Date.now() - 86400000).toISOString(), who: 'Admin', action: 'Updated volunteer status', detail: 'Aisyah Rahman → On Leave' },
+    { id: 'A005', when: new Date(Date.now() - 86400000 * 2).toISOString(), who: 'Manager', action: 'Designated day lead', detail: 'Lim Wei Ming → Sat 10 May' },
+    { id: 'A006', when: new Date(Date.now() - 86400000 * 3).toISOString(), who: 'Admin', action: 'Updated block library', detail: 'Renamed "Night" block, kept hours' },
+  ];
+}
+
+// ===== GAP DETECTION =====
+function detectGaps(assignments, gapThresholdMinutes = 30, minRequired = 2) {
+  // Build coverage by date+hour
+  const byDate = {};
+  assignments.forEach(a => {
+    if (!byDate[a.date]) byDate[a.date] = Array(24).fill(0);
+    for (let h = a.startHour; h < a.endHour; h++) {
+      const realH = h % 24;
+      byDate[a.date][realH] = (byDate[a.date][realH] || 0) + 1;
+    }
+  });
+  
+  const gaps = [];
+  Object.keys(byDate).sort().forEach(date => {
+    const cov = byDate[date];
+    for (let h = 0; h < 24; h++) {
+      if (cov[h] < minRequired) {
+        const last = gaps[gaps.length - 1];
+        if (last && last.date === date && last.endHour === h && last.coverage === cov[h]) {
+          last.endHour = h + 1;
+          last.durationMinutes += 60;
+        } else {
+          gaps.push({
+            date,
+            startHour: h,
+            endHour: h + 1,
+            durationMinutes: 60,
+            coverage: cov[h],
+            level: cov[h] === 0 ? 'unmanned' : 'single',
+          });
+        }
+      }
+    }
+  });
+  
+  return gaps.filter(g => g.durationMinutes > gapThresholdMinutes);
+}
+
+// ===== UI PRIMITIVES =====
+const Card = ({ children, className = '', style = {} }) => (
+  <div className={`rounded-xl ${className}`} style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}`, ...style }}>
+    {children}
+  </div>
+);
+
+const Button = ({ children, variant = 'primary', size = 'md', onClick, disabled, className = '', title }) => {
+  const styles = {
+    primary: { backgroundColor: COLORS.primary, color: '#fff', border: `1px solid ${COLORS.primary}` },
+    secondary: { backgroundColor: COLORS.card, color: COLORS.ink, border: `1px solid ${COLORS.border}` },
+    ghost: { backgroundColor: 'transparent', color: COLORS.inkSoft, border: '1px solid transparent' },
+    danger: { backgroundColor: COLORS.red, color: '#fff', border: `1px solid ${COLORS.red}` },
+  };
+  const sizes = { sm: 'px-3 py-1.5 text-xs', md: 'px-4 py-2 text-sm', lg: 'px-5 py-2.5 text-sm' };
+  return (
+    <button onClick={onClick} disabled={disabled} title={title}
+      className={`${sizes[size]} rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98] inline-flex items-center gap-2 ${className}`}
+      style={styles[variant]}>
+      {children}
+    </button>
+  );
+};
+
+const Badge = ({ children, color = 'neutral', size = 'sm' }) => {
+  const colors = {
+    neutral: { bg: COLORS.paperWarm, ink: COLORS.inkSoft },
+    red: { bg: COLORS.redLight, ink: COLORS.red },
+    amber: { bg: COLORS.amberLight, ink: '#9a6b1f' },
+    green: { bg: COLORS.greenLight, ink: '#2c6a3e' },
+    primary: { bg: COLORS.primaryLight, ink: COLORS.primaryDark },
+  };
+  const c = colors[color];
+  const sizing = size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs';
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md font-medium ${sizing}`} style={{ backgroundColor: c.bg, color: c.ink }}>
+      {children}
+    </span>
+  );
+};
+
+const StatCard = ({ label, value, hint, color = 'neutral', icon: Icon }) => {
+  const colorMap = { neutral: COLORS.ink, red: COLORS.red, amber: '#9a6b1f', green: '#2c6a3e', primary: COLORS.primary };
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between mb-2">
+        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: COLORS.inkMuted }}>{label}</span>
+        {Icon && <Icon size={16} style={{ color: COLORS.inkMuted }} />}
+      </div>
+      <div className="text-3xl font-light tracking-tight" style={{ color: colorMap[color], fontFamily: 'Georgia, serif' }}>{value}</div>
+      {hint && <div className="text-xs mt-1.5" style={{ color: COLORS.inkMuted }}>{hint}</div>}
+    </Card>
+  );
+};
+
+function PageHeader({ title, subtitle, inline }) {
+  if (inline) return (
+    <div>
+      <h1 className="text-xl font-semibold" style={{ fontFamily: 'Georgia, serif', color: COLORS.ink }}>{title}</h1>
+      <p className="text-xs mt-0.5" style={{ color: COLORS.inkMuted }}>{subtitle}</p>
+    </div>
+  );
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight" style={{ fontFamily: 'Georgia, serif', color: COLORS.ink }}>{title}</h1>
+      <p className="text-sm mt-1" style={{ color: COLORS.inkMuted }}>{subtitle}</p>
+    </div>
+  );
+}
+
+// ===== MAIN APP =====
+function App() {
+  const [volunteers, setVolunteers] = useState(() => generateVolunteers());
+  const [blocks, setBlocks] = useState(() => DEFAULT_BLOCKS);
+  const [assignments, setAssignments] = useState(() => generateAssignments(generateVolunteers(), DEFAULT_BLOCKS, 3, 3));
+  const [dayLeads, setDayLeads] = useState(() => generateDayLeads(generateVolunteers(), 3, 3));
+  const [broadcasts] = useState(() => generateBroadcasts(generateAssignments(generateVolunteers(), DEFAULT_BLOCKS, 3, 3)));
+  const [auditLog] = useState(() => generateAuditLog());
+  
+  const [role, setRole] = useState('admin');
+  const [page, setPage] = useState('dashboard');
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [resetKey, setResetKey] = useState(0);
+  
+  const today = useMemo(() => {
+    const d = new Date('2026-05-09');
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  
+  const currentWeekStart = useMemo(() => {
+    const d = new Date(today);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff + weekOffset * 7);
+    return d;
+  }, [today, weekOffset]);
+  
+  const gaps = useMemo(() => detectGaps(assignments, 30, 2), [assignments]);
+  
+  const handleReset = () => {
+    const fresh = generateVolunteers();
+    setVolunteers(fresh);
+    setAssignments(generateAssignments(fresh, blocks, 3, 3));
+    setDayLeads(generateDayLeads(fresh, 3, 3));
+    setResetKey(k => k + 1);
+    setPage('dashboard');
+    setWeekOffset(0);
+  };
+  
+  const navItems = role === 'admin' ? [
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'roster', label: 'Roster', icon: Calendar },
+    { id: 'volunteers', label: 'Volunteers', icon: Users },
+    { id: 'broadcasts', label: 'Broadcasts', icon: Megaphone },
+    { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ] : [
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'roster', label: 'Roster', icon: Calendar },
+    { id: 'volunteers', label: 'Directory', icon: Users },
+    { id: 'broadcasts', label: 'Broadcasts', icon: Megaphone },
+    { id: 'reports', label: 'Reports', icon: FileText },
+  ];
+  
+  const validPage = navItems.find(n => n.id === page) ? page : navItems[0].id;
+  if (validPage !== page) setPage(validPage);
+  
+  return (
+    <div key={resetKey} style={{ backgroundColor: COLORS.paper, minHeight: '100vh', fontFamily: '"Inter", "Segoe UI", system-ui, sans-serif', color: COLORS.ink }}>
+      <header style={{ backgroundColor: COLORS.card, borderBottom: `1px solid ${COLORS.border}` }} className="sticky top-0 z-20">
+        <div className="px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: COLORS.primary }}>
+              <Heart size={18} color="#fff" fill="#fff" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold leading-tight">Befrienders KL</div>
+              <div className="text-[11px]" style={{ color: COLORS.inkMuted }}>Volunteer Roster System · Prototype v2</div>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="text-xs" style={{ color: COLORS.inkMuted }}>Today: {formatDateLong(today)}</div>
+            <div className="h-6 w-px" style={{ backgroundColor: COLORS.border }}></div>
+            
+            <div className="flex items-center gap-1 p-1 rounded-lg" style={{ backgroundColor: COLORS.paperWarm }}>
+              {[
+                { id: 'admin', label: 'Admin' },
+                { id: 'manager', label: 'Manager (DD)' },
+              ].map(r => (
+                <button key={r.id} onClick={() => { setRole(r.id); setPage('dashboard'); }}
+                  className="px-3 py-1 rounded-md text-xs font-medium transition"
+                  style={{
+                    backgroundColor: role === r.id ? COLORS.card : 'transparent',
+                    color: role === r.id ? COLORS.primary : COLORS.inkSoft,
+                    boxShadow: role === r.id ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                  }}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md" style={{ backgroundColor: COLORS.paperWarm, color: COLORS.inkMuted }}>
+              <Users size={12} />
+              <span className="text-[10px]">Volunteer login disabled in v1</span>
+            </div>
+            
+            <button onClick={handleReset}
+              className="text-xs px-3 py-1.5 rounded-lg border transition hover:bg-orange-50"
+              style={{ borderColor: COLORS.border, color: COLORS.inkSoft }}>
+              <RefreshCw size={12} className="inline mr-1" /> Reset Demo
+            </button>
+          </div>
+        </div>
+      </header>
+      
+      <div className="flex">
+        <aside className="w-56 sticky top-[57px] h-[calc(100vh-57px)] py-4 px-3" style={{ borderRight: `1px solid ${COLORS.border}`, backgroundColor: COLORS.card }}>
+          <div className="px-3 pb-3 mb-2" style={{ borderBottom: `1px solid ${COLORS.borderSoft}` }}>
+            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: COLORS.inkMuted }}>Logged in as</div>
+            <div className="text-sm font-medium">
+              {role === 'admin' ? 'Sarah (Admin)' : 'Lim Wei Ming (Duty Director)'}
+            </div>
+          </div>
+          
+          <nav className="space-y-0.5">
+            {navItems.map(item => {
+              const Icon = item.icon;
+              const active = page === item.id;
+              return (
+                <button key={item.id} onClick={() => setPage(item.id)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition text-left"
+                  style={{
+                    backgroundColor: active ? COLORS.primaryLight : 'transparent',
+                    color: active ? COLORS.primaryDark : COLORS.inkSoft,
+                    fontWeight: active ? 600 : 500,
+                  }}>
+                  <Icon size={16} />
+                  <span className="flex-1">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          
+          <div className="absolute bottom-4 left-3 right-3 p-3 rounded-lg" style={{ backgroundColor: COLORS.paperWarm }}>
+            <div className="flex items-start gap-2">
+              <AlertCircle size={14} style={{ color: COLORS.amber, marginTop: 2 }} />
+              <div className="text-[10px] leading-snug" style={{ color: COLORS.inkSoft }}>
+                <strong>Prototype mode.</strong> Data fake. Emails don't send. Volunteer login disabled in v1.
+              </div>
+            </div>
+          </div>
+        </aside>
+        
+        <main className="flex-1 p-6 max-w-[1500px]">
+          {page === 'dashboard' && <Dashboard role={role} volunteers={volunteers} assignments={assignments} blocks={blocks} dayLeads={dayLeads} gaps={gaps} broadcasts={broadcasts} today={today} setPage={setPage} />}
+          {page === 'roster' && <RosterPage volunteers={volunteers} assignments={assignments} setAssignments={setAssignments} blocks={blocks} dayLeads={dayLeads} setDayLeads={setDayLeads} gaps={gaps} weekOffset={weekOffset} setWeekOffset={setWeekOffset} currentWeekStart={currentWeekStart} today={today} role={role} />}
+          {page === 'volunteers' && <VolunteersPage volunteers={volunteers} role={role} />}
+          {page === 'broadcasts' && <BroadcastsPage volunteers={volunteers} broadcasts={broadcasts} />}
+          {page === 'reports' && <ReportsPage volunteers={volunteers} assignments={assignments} dayLeads={dayLeads} gaps={gaps} auditLog={auditLog} role={role} />}
+          {page === 'settings' && role === 'admin' && <SettingsPage blocks={blocks} setBlocks={setBlocks} />}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+// ===== DASHBOARD =====
+function Dashboard({ role, volunteers, assignments, blocks, dayLeads, gaps, broadcasts, today, setPage }) {
+  const activeVols = volunteers.filter(v => v.status === 'Active').length;
+  const onLeave = volunteers.filter(v => v.status === 'On Leave').length;
+  const eligibleLeaders = volunteers.filter(v => v.status === 'Active' && v.shiftLeaderEligible).length;
+  
+  const daysAtRisk = useMemo(() => {
+    const set = new Set();
+    gaps.forEach(g => {
+      const d = new Date(g.date);
+      const diff = (d - today) / 86400000;
+      if (diff >= 0 && diff < 30) set.add(g.date);
+    });
+    return set.size;
+  }, [gaps, today]);
+  
+  const futureGaps = gaps.filter(g => new Date(g.date) >= today).slice(0, 5);
+  const openBroadcasts = broadcasts.filter(b => b.status === 'open').length;
+  
+  // Days without a designated lead in next 7 days
+  const daysWithoutLead = useMemo(() => {
+    let count = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = formatDateISO(dateAddDays(today, i));
+      if (!dayLeads[d]) count++;
+    }
+    return count;
+  }, [dayLeads, today]);
+  
+  const coverageTrend = useMemo(() => {
+    const data = [];
+    for (let i = -14; i <= 0; i++) {
+      const d = dateAddDays(today, i);
+      const dateStr = formatDateISO(d);
+      const cov = Array(24).fill(0);
+      assignments.filter(a => a.date === dateStr).forEach(a => {
+        for (let h = a.startHour; h < a.endHour; h++) cov[h % 24]++;
+      });
+      const goodHours = cov.filter(c => c >= 2).length;
+      data.push({ date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), coverage: Math.round(goodHours / 24 * 100) });
+    }
+    return data;
+  }, [assignments, today]);
+  
+  const slaAvg = Math.round(coverageTrend.reduce((s, d) => s + d.coverage, 0) / coverageTrend.length);
+  
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Operations Dashboard" subtitle={`24/7 coverage view · ${role === 'admin' ? 'Full administrative access' : 'Duty Director view'}`} />
+      
+      <div className="grid grid-cols-5 gap-4">
+        <StatCard label="Active Volunteers" value={activeVols} hint={`${onLeave} on leave · ${eligibleLeaders} leader-eligible`} icon={Users} />
+        <StatCard label="Days at Risk" value={daysAtRisk} hint="next 30 days" color={daysAtRisk > 0 ? 'red' : 'green'} icon={AlertTriangle} />
+        <StatCard label="Days w/o Lead" value={daysWithoutLead} hint="next 7 days" color={daysWithoutLead > 0 ? 'amber' : 'green'} icon={Star} />
+        <StatCard label="Open Broadcasts" value={openBroadcasts} hint="awaiting response" color={openBroadcasts > 0 ? 'red' : 'green'} icon={Megaphone} />
+        <StatCard label="Coverage SLA" value={`${slaAvg}%`} hint="2+ vols, last 14 days" color={slaAvg >= 90 ? 'green' : 'amber'} icon={TrendingUp} />
+      </div>
+      
+      {futureGaps.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="p-4 border-b" style={{ borderColor: COLORS.borderSoft, backgroundColor: COLORS.redLight }}>
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={18} style={{ color: COLORS.red }} />
+              <h3 className="font-semibold" style={{ color: COLORS.red }}>Upcoming Coverage Gaps</h3>
+              <span className="text-xs ml-auto" style={{ color: COLORS.red }}>Continuous intervals &gt;30 min below 2 volunteers</span>
+            </div>
+          </div>
+          <div className="divide-y" style={{ borderColor: COLORS.borderSoft }}>
+            {futureGaps.map((gap, idx) => (
+              <div key={idx} className="p-4 flex items-center gap-4">
+                <div className="w-1 h-12 rounded-full" style={{ backgroundColor: gap.level === 'unmanned' ? COLORS.red : COLORS.amber }}></div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{formatDateLong(new Date(gap.date))}</div>
+                  <div className="text-xs mt-0.5" style={{ color: COLORS.inkMuted }}>
+                    {String(gap.startHour).padStart(2, '0')}:00 – {String(gap.endHour).padStart(2, '0')}:00 · {gap.durationMinutes} min · {gap.level === 'unmanned' ? 'Unmanned' : '1 volunteer only'}
+                  </div>
+                </div>
+                <Badge color={gap.level === 'unmanned' ? 'red' : 'amber'}>{gap.level === 'unmanned' ? 'UNMANNED' : 'SINGLE'}</Badge>
+                <Button size="sm" variant="secondary" onClick={() => setPage('roster')}>Find cover →</Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+      
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="col-span-2 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold">Coverage Trend</h3>
+              <p className="text-xs mt-0.5" style={{ color: COLORS.inkMuted }}>% of 24h day with 2+ volunteers, last 14 days</p>
+            </div>
+            <Badge color={slaAvg >= 90 ? 'green' : 'amber'}>Avg {slaAvg}%</Badge>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={coverageTrend}>
+              <defs>
+                <linearGradient id="cov" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={COLORS.primary} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={COLORS.primary} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={COLORS.borderSoft} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: COLORS.inkMuted }} stroke={COLORS.border} />
+              <YAxis tick={{ fontSize: 11, fill: COLORS.inkMuted }} stroke={COLORS.border} domain={[60, 100]} />
+              <Tooltip contentStyle={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12 }} />
+              <Area type="monotone" dataKey="coverage" stroke={COLORS.primary} strokeWidth={2} fill="url(#cov)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Card>
+        
+        <Card className="p-5">
+          <h3 className="font-semibold mb-1">Volunteer Composition</h3>
+          <p className="text-xs mb-4" style={{ color: COLORS.inkMuted }}>Active volunteers by seniority</p>
+          <div className="space-y-3">
+            {SENIORITY_LEVELS.map(level => {
+              const count = volunteers.filter(v => v.status === 'Active' && v.seniority === level).length;
+              const total = volunteers.filter(v => v.status === 'Active').length;
+              const pct = total > 0 ? Math.round(count / total * 100) : 0;
+              return (
+                <div key={level}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="font-medium">{level}</span>
+                    <span style={{ color: COLORS.inkMuted }}>{count} ({pct}%)</span>
+                  </div>
+                  <div className="h-2 rounded-full" style={{ backgroundColor: COLORS.paperWarm }}>
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: level === 'Senior' ? COLORS.primary : level === 'Certified' ? COLORS.amber : COLORS.inkMuted }}></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+      
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold">Recent Activity</h3>
+          <button onClick={() => setPage('reports')} className="text-xs" style={{ color: COLORS.primary }}>View audit log →</button>
+        </div>
+        <div className="space-y-2">
+          {[
+            { who: 'Manager (Lim WM)', action: 'Assigned Aisyah R. to Tue Evening block', when: '5 minutes ago', icon: Edit2, color: 'green' },
+            { who: 'System', action: 'Auto-fired urgent broadcast for tonight late-night', when: '2 hours ago', icon: Megaphone, color: 'red' },
+            { who: 'Manager (Lim WM)', action: 'Designated Saturday lead: Lim Wei Ming', when: '4 hours ago', icon: Star, color: 'amber' },
+            { who: 'Admin (Sarah)', action: 'Updated volunteer status: Aisyah → On Leave', when: 'Yesterday', icon: Users, color: 'neutral' },
+          ].map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <div key={i} className="flex items-center gap-3 py-2">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: item.color === 'red' ? COLORS.redLight : item.color === 'amber' ? COLORS.amberLight : item.color === 'green' ? COLORS.greenLight : COLORS.paperWarm }}>
+                  <Icon size={14} style={{ color: item.color === 'red' ? COLORS.red : item.color === 'amber' ? '#9a6b1f' : item.color === 'green' ? '#2c6a3e' : COLORS.inkSoft }} />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm"><span className="font-medium">{item.who}</span> {item.action}</div>
+                </div>
+                <div className="text-xs" style={{ color: COLORS.inkMuted }}>{item.when}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ===== ROSTER PAGE =====
+function RosterPage({ volunteers, assignments, setAssignments, blocks, dayLeads, setDayLeads, gaps, weekOffset, setWeekOffset, currentWeekStart, today, role }) {
+  const [view, setView] = useState('grid');
+  
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => dateAddDays(currentWeekStart, i)), [currentWeekStart]);
+  
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <PageHeader title="Roster · 24/7" subtitle="Hourly schedule with block-based assignments" inline />
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setWeekOffset(weekOffset - 1)}><ChevronLeft size={14} /></Button>
+          <div className="text-sm font-medium px-3 min-w-[200px] text-center">
+            Week of {weekDays[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – {weekDays[6].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setWeekOffset(weekOffset + 1)}><ChevronRight size={14} /></Button>
+          <Button variant="secondary" size="sm" onClick={() => setWeekOffset(0)}>This Week</Button>
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: COLORS.paperWarm }}>
+          {[
+            { id: 'grid', label: 'Hourly Grid', icon: Calendar },
+            { id: 'timeline', label: 'Timeline (1 day)', icon: Activity },
+            { id: 'heatmap', label: 'Heatmap (30d)', icon: BarChart3 },
+            { id: 'gaps', label: `Gaps (${gaps.length})`, icon: AlertTriangle },
+          ].map(v => {
+            const Icon = v.icon;
+            const active = view === v.id;
+            return (
+              <button key={v.id} onClick={() => setView(v.id)} className="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition" style={{ backgroundColor: active ? COLORS.card : 'transparent', color: active ? COLORS.primary : COLORS.inkSoft, boxShadow: active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none' }}>
+                <Icon size={12} /> {v.label}
+              </button>
+            );
+          })}
+        </div>
+        
+        <div className="flex gap-2">
+          {role === 'admin' && <Button variant="secondary" size="sm"><Download size={14} /> Export</Button>}
+          <Button size="sm"><Plus size={14} /> Add assignment</Button>
+          <Button size="sm" variant="secondary">Publish week</Button>
+        </div>
+      </div>
+      
+      {view === 'grid' && <HourlyGrid weekDays={weekDays} assignments={assignments} blocks={blocks} volunteers={volunteers} dayLeads={dayLeads} today={today} />}
+      {view === 'timeline' && <TimelineView weekDays={weekDays} assignments={assignments} blocks={blocks} volunteers={volunteers} today={today} />}
+      {view === 'heatmap' && <HeatmapView assignments={assignments} today={today} />}
+      {view === 'gaps' && <GapList gaps={gaps} today={today} />}
+    </div>
+  );
+}
+
+// ===== HOURLY GRID — 24h x 7d with spanning blocks =====
+function HourlyGrid({ weekDays, assignments, blocks, volunteers, dayLeads, today }) {
+  const HOUR_HEIGHT = 32; // px per hour row
+  const HEADER_HEIGHT = 80; // px for date header
+  const HOUR_LABEL_W = 60; // px for hour column
+  
+  // Group assignments by date for fast lookup
+  const byDate = useMemo(() => {
+    const map = {};
+    weekDays.forEach(d => { map[formatDateISO(d)] = []; });
+    assignments.forEach(a => {
+      if (map[a.date] !== undefined) map[a.date].push(a);
+    });
+    return map;
+  }, [assignments, weekDays]);
+  
+  // For each day, compute overlapping lanes (so blocks don't visually collide)
+  const buildLanes = (dayAssignments) => {
+    // Sort by startHour
+    const sorted = [...dayAssignments].sort((a, b) => a.startHour - b.startHour);
+    const lanes = []; // each lane = array of assignments
+    sorted.forEach(a => {
+      let placed = false;
+      for (const lane of lanes) {
+        const last = lane[lane.length - 1];
+        if (last.endHour <= a.startHour) {
+          lane.push(a);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) lanes.push([a]);
+    });
+    return lanes;
+  };
+  
+  // Compute coverage at each hour for color hint
+  const getCoverage = (date, hour) => {
+    return (byDate[date] || []).filter(a => hour >= a.startHour && hour < a.endHour).length;
+  };
+  
+  return (
+    <Card className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: HOUR_LABEL_W + 7 * 180 }}>
+          {/* Header row */}
+          <div className="flex sticky top-0 z-10" style={{ backgroundColor: COLORS.paperWarm, borderBottom: `2px solid ${COLORS.border}` }}>
+            <div style={{ width: HOUR_LABEL_W, height: HEADER_HEIGHT, borderRight: `1px solid ${COLORS.border}` }}></div>
+            {weekDays.map((d, i) => {
+              const isToday = formatDateISO(d) === formatDateISO(today);
+              const dateStr = formatDateISO(d);
+              const leadId = dayLeads[dateStr];
+              const lead = leadId ? volunteers.find(v => v.id === leadId) : null;
+              return (
+                <div key={i} className="flex-1 p-2 text-center" style={{ minWidth: 180, height: HEADER_HEIGHT, borderRight: i < 6 ? `1px solid ${COLORS.border}` : 'none', backgroundColor: isToday ? COLORS.primaryLight : 'transparent' }}>
+                  <div className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.inkMuted }}>{d.toLocaleDateString('en-GB', { weekday: 'short' })}</div>
+                  <div className="text-sm font-semibold mt-0.5" style={{ color: isToday ? COLORS.primary : COLORS.ink }}>{d.getDate()} {d.toLocaleDateString('en-GB', { month: 'short' })}</div>
+                  {isToday && <div className="text-[9px] font-bold mt-0.5" style={{ color: COLORS.primary }}>TODAY</div>}
+                  <div className="mt-1 flex items-center justify-center gap-1 text-[10px]">
+                    <Star size={10} style={{ color: lead ? '#9a6b1f' : COLORS.inkMuted }} fill={lead ? '#E8A33D' : 'none'} />
+                    <span style={{ color: lead ? COLORS.ink : COLORS.inkMuted, fontWeight: lead ? 600 : 400 }}>
+                      {lead ? `Lead: ${lead.preferredName}` : 'No lead set'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Hour rows */}
+          <div className="relative">
+            {Array.from({ length: 24 }, (_, h) => (
+              <div key={h} className="flex" style={{ height: HOUR_HEIGHT, borderBottom: `1px solid ${h % 6 === 5 ? COLORS.border : COLORS.borderSoft}` }}>
+                <div className="text-[10px] flex items-center justify-end pr-2" style={{ width: HOUR_LABEL_W, color: COLORS.inkMuted, borderRight: `1px solid ${COLORS.border}`, fontWeight: h % 6 === 0 ? 600 : 400 }}>
+                  {String(h).padStart(2, '0')}:00
+                </div>
+                {weekDays.map((d, dIdx) => {
+                  const dateStr = formatDateISO(d);
+                  const cov = getCoverage(dateStr, h);
+                  const bg = cov === 0 ? COLORS.redLight : cov === 1 ? COLORS.amberLight : 'transparent';
+                  return (
+                    <div key={dIdx} className="flex-1" style={{ minWidth: 180, borderRight: dIdx < 6 ? `1px solid ${COLORS.borderSoft}` : 'none', backgroundColor: bg }}></div>
+                  );
+                })}
+              </div>
+            ))}
+            
+            {/* Block overlays — rendered absolutely positioned over the hour grid */}
+            <div className="absolute inset-0 pointer-events-none" style={{ left: HOUR_LABEL_W }}>
+              <div className="flex h-full">
+                {weekDays.map((d, dIdx) => {
+                  const dateStr = formatDateISO(d);
+                  const dayAssignments = byDate[dateStr] || [];
+                  const lanes = buildLanes(dayAssignments);
+                  return (
+                    <div key={dIdx} className="flex-1 relative" style={{ minWidth: 180 }}>
+                      {lanes.map((lane, laneIdx) => {
+                        const laneCount = lanes.length;
+                        const laneWidth = `${100 / laneCount}%`;
+                        return lane.map(a => {
+                          const v = volunteers.find(x => x.id === a.volunteerId);
+                          const block = blocks.find(b => b.id === a.blockId);
+                          const palette = block ? BLOCK_PALETTE[block.paletteIdx] : BLOCK_PALETTE[0];
+                          const top = a.startHour * HOUR_HEIGHT;
+                          const height = (a.endHour - a.startHour) * HOUR_HEIGHT - 2;
+                          if (!v) return null;
+                          const isLeader = dayLeads[dateStr] === v.id;
+                          return (
+                            <div key={a.id} className="absolute pointer-events-auto rounded-md flex flex-col px-2 py-1 overflow-hidden cursor-pointer transition hover:brightness-95" style={{
+                              left: `calc(${laneIdx} * ${laneWidth} + 2px)`,
+                              width: `calc(${laneWidth} - 4px)`,
+                              top: top + 1,
+                              height,
+                              backgroundColor: palette.bg,
+                              borderLeft: `3px solid ${palette.border}`,
+                              border: `1px solid ${palette.border}40`,
+                              fontSize: 11,
+                            }} title={`${v.fullName} · ${block?.name || 'custom'} · ${String(a.startHour).padStart(2, '0')}:00–${String(a.endHour % 24).padStart(2, '0')}:00`}>
+                              <div className="font-semibold truncate" style={{ color: palette.ink, fontSize: 11 }}>
+                                {isLeader && <Star size={9} className="inline mr-0.5" fill={palette.ink} />}
+                                {v.preferredName}
+                              </div>
+                              {height >= HOUR_HEIGHT * 1.5 && (
+                                <div className="text-[9px] truncate" style={{ color: palette.ink, opacity: 0.75 }}>
+                                  {block?.name || 'custom'} · {v.seniority[0]}
+                                </div>
+                              )}
+                              {height >= HOUR_HEIGHT * 3 && (
+                                <div className="text-[9px] mt-auto" style={{ color: palette.ink, opacity: 0.6 }}>
+                                  {String(a.startHour).padStart(2, '0')}:00–{String(a.endHour % 24).padStart(2, '0')}:00
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Block legend */}
+      <div className="p-3 flex items-center gap-4 flex-wrap text-[11px]" style={{ borderTop: `1px solid ${COLORS.border}`, backgroundColor: COLORS.paperWarm, color: COLORS.inkSoft }}>
+        <span><strong>Blocks:</strong></span>
+        {blocks.map(b => {
+          const p = BLOCK_PALETTE[b.paletteIdx];
+          return (
+            <span key={b.id} className="inline-flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: p.bg, border: `1px solid ${p.border}` }}></span>
+              {b.name} · {String(b.startHour).padStart(2, '0')}–{String(b.endHour % 24 || 24).padStart(2, '0')}
+            </span>
+          );
+        })}
+        <span className="ml-auto flex items-center gap-1"><Star size={10} fill={COLORS.amber} style={{ color: COLORS.amber }} /> Day Lead</span>
+      </div>
+      <div className="p-2 flex items-center gap-3 text-[11px]" style={{ backgroundColor: COLORS.paperWarm, color: COLORS.inkMuted, borderTop: `1px solid ${COLORS.borderSoft}` }}>
+        <span><strong>Coverage indicators:</strong></span>
+        <span><span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ backgroundColor: COLORS.redLight }}></span>Unmanned</span>
+        <span><span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ backgroundColor: COLORS.amberLight }}></span>Single-manned</span>
+        <span><span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}` }}></span>2+ volunteers</span>
+        <span style={{ marginLeft: 'auto' }}>S/C/T = Senior/Certified/Trainee</span>
+      </div>
+    </Card>
+  );
+}
+
+// ===== TIMELINE VIEW =====
+function TimelineView({ weekDays, assignments, blocks, volunteers, today }) {
+  const [selectedDay, setSelectedDay] = useState(0);
+  const day = weekDays[selectedDay];
+  const dateStr = formatDateISO(day);
+  const dayAssignments = assignments.filter(a => a.date === dateStr);
+  
+  const hours = Array.from({ length: 24 }, (_, h) => {
+    const active = dayAssignments.filter(a => h >= a.startHour && h < a.endHour);
+    return { hour: h, coverage: active.length, vols: active.map(a => volunteers.find(v => v.id === a.volunteerId)).filter(Boolean) };
+  });
+  
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold">Continuous Timeline · {formatDateLong(day)}</h3>
+          <p className="text-xs mt-0.5" style={{ color: COLORS.inkMuted }}>Hour-by-hour coverage</p>
+        </div>
+        <div className="flex gap-1">
+          {weekDays.map((d, i) => (
+            <button key={i} onClick={() => setSelectedDay(i)} className="px-2 py-1 rounded text-[11px] font-medium" style={{ backgroundColor: selectedDay === i ? COLORS.primary : COLORS.paperWarm, color: selectedDay === i ? '#fff' : COLORS.inkSoft }}>
+              {d.toLocaleDateString('en-GB', { weekday: 'short' })} {d.getDate()}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      <div>
+        <div className="flex text-[10px] mb-1" style={{ color: COLORS.inkMuted }}>
+          {hours.map((h, i) => (i % 3 === 0 ? <div key={i} style={{ width: 'calc(100% / 24 * 3)' }}>{String(h.hour).padStart(2, '0')}:00</div> : null))}
+        </div>
+        <div className="flex h-12 rounded-lg overflow-hidden border" style={{ borderColor: COLORS.border }}>
+          {hours.map((h, i) => {
+            const c = h.coverage === 0 ? COLORS.red : h.coverage === 1 ? COLORS.amber : h.coverage <= 3 ? COLORS.green : COLORS.primary;
+            return (
+              <div key={i} className="flex-1 flex items-center justify-center text-[10px] font-bold text-white relative group" style={{ backgroundColor: c }}>
+                {h.coverage}
+                <div className="absolute bottom-full mb-2 hidden group-hover:block z-10 px-2 py-1 rounded text-[10px] whitespace-nowrap" style={{ backgroundColor: COLORS.ink, color: '#fff' }}>
+                  {String(h.hour).padStart(2, '0')}:00 · {h.vols.map(v => v.preferredName).join(', ') || 'no one'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      <div className="mt-6">
+        <div className="text-xs font-medium mb-2" style={{ color: COLORS.inkSoft }}>Assignments on this day · {dayAssignments.length} total</div>
+        {dayAssignments.length === 0 ? (
+          <div className="text-sm py-6 text-center" style={{ color: COLORS.inkMuted }}>No assignments. Day is unmanned.</div>
+        ) : (
+          dayAssignments.sort((a, b) => a.startHour - b.startHour).map(a => {
+            const v = volunteers.find(x => x.id === a.volunteerId);
+            const block = blocks.find(b => b.id === a.blockId);
+            const startPct = (a.startHour / 24) * 100;
+            const widthPct = ((a.endHour - a.startHour) / 24) * 100;
+            const palette = block ? BLOCK_PALETTE[block.paletteIdx] : BLOCK_PALETTE[0];
+            return (
+              <div key={a.id} className="relative h-8 mb-1.5 rounded" style={{ backgroundColor: COLORS.paperWarm }}>
+                <div className="absolute top-0 bottom-0 rounded flex items-center px-2 text-[11px] font-medium gap-1.5" style={{ left: `${startPct}%`, width: `${widthPct}%`, backgroundColor: palette.bg, color: palette.ink, border: `1px solid ${palette.border}` }}>
+                  <span className="font-semibold">{v?.preferredName}</span>
+                  <span style={{ opacity: 0.7 }}>· {block?.name} · {String(a.startHour).padStart(2, '0')}:00–{String(a.endHour % 24).padStart(2, '0')}:00</span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+      
+      <div className="mt-4 flex items-center gap-4 text-[11px] pt-3" style={{ borderTop: `1px solid ${COLORS.borderSoft}`, color: COLORS.inkMuted }}>
+        <span><strong>Coverage:</strong></span>
+        <span><span className="inline-block w-3 h-3 rounded align-middle mr-1" style={{ backgroundColor: COLORS.red }}></span>0</span>
+        <span><span className="inline-block w-3 h-3 rounded align-middle mr-1" style={{ backgroundColor: COLORS.amber }}></span>1</span>
+        <span><span className="inline-block w-3 h-3 rounded align-middle mr-1" style={{ backgroundColor: COLORS.green }}></span>2-3</span>
+        <span><span className="inline-block w-3 h-3 rounded align-middle mr-1" style={{ backgroundColor: COLORS.primary }}></span>4+</span>
+      </div>
+    </Card>
+  );
+}
+
+// ===== HEATMAP =====
+function HeatmapView({ assignments, today }) {
+  const days = Array.from({ length: 30 }, (_, i) => dateAddDays(today, i - 7));
+  
+  return (
+    <Card className="p-5">
+      <div className="mb-4">
+        <h3 className="font-semibold">Coverage Heatmap · 30-Day View</h3>
+        <p className="text-xs mt-0.5" style={{ color: COLORS.inkMuted }}>Each cell = 1 hour. Darker = more volunteers.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: 720 }}>
+          <div className="flex text-[9px] mb-1 ml-20" style={{ color: COLORS.inkMuted }}>
+            {Array.from({ length: 24 }, (_, h) => (
+              <div key={h} style={{ width: 'calc((100% - 80px) / 24)', textAlign: 'center' }}>{h % 3 === 0 ? String(h).padStart(2, '0') : ''}</div>
+            ))}
+          </div>
+          {days.map((d, dIdx) => {
+            const dateStr = formatDateISO(d);
+            const isToday = dateStr === formatDateISO(today);
+            const cov = Array(24).fill(0);
+            assignments.filter(a => a.date === dateStr).forEach(a => {
+              for (let h = a.startHour; h < a.endHour; h++) cov[h % 24]++;
+            });
+            return (
+              <div key={dIdx} className="flex items-center mb-px">
+                <div className="w-20 text-[10px] pr-2 text-right" style={{ color: isToday ? COLORS.primary : COLORS.inkMuted, fontWeight: isToday ? 700 : 400 }}>
+                  {d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </div>
+                <div className="flex flex-1 gap-px">
+                  {cov.map((c, hIdx) => {
+                    let bg;
+                    if (c === 0) bg = COLORS.red;
+                    else if (c === 1) bg = COLORS.amber;
+                    else if (c === 2) bg = '#a8c8a0';
+                    else if (c === 3) bg = COLORS.green;
+                    else bg = COLORS.primary;
+                    return <div key={hIdx} title={`${dateStr} ${String(hIdx).padStart(2, '0')}:00 — ${c} volunteers`} style={{ flex: 1, height: 14, backgroundColor: bg, border: isToday ? `1px solid ${COLORS.primary}` : 'none' }}></div>;
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-3 text-[11px] flex-wrap pt-3" style={{ borderTop: `1px solid ${COLORS.borderSoft}`, color: COLORS.inkMuted }}>
+        <span><strong>Coverage:</strong></span>
+        <span><span className="inline-block w-3 h-3 align-middle mr-1" style={{ backgroundColor: COLORS.red }}></span>0 (unmanned)</span>
+        <span><span className="inline-block w-3 h-3 align-middle mr-1" style={{ backgroundColor: COLORS.amber }}></span>1 (single)</span>
+        <span><span className="inline-block w-3 h-3 align-middle mr-1" style={{ backgroundColor: '#a8c8a0' }}></span>2 (min)</span>
+        <span><span className="inline-block w-3 h-3 align-middle mr-1" style={{ backgroundColor: COLORS.green }}></span>3</span>
+        <span><span className="inline-block w-3 h-3 align-middle mr-1" style={{ backgroundColor: COLORS.primary }}></span>4+</span>
+      </div>
+    </Card>
+  );
+}
+
+// ===== GAP LIST =====
+function GapList({ gaps, today }) {
+  const futureGaps = gaps.filter(g => new Date(g.date) >= today);
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold">Coverage Gaps · Upcoming</h3>
+          <p className="text-xs mt-0.5" style={{ color: COLORS.inkMuted }}>Continuous intervals &gt;30 minutes below 2 volunteers</p>
+        </div>
+        <Badge color="red">{futureGaps.length} active</Badge>
+      </div>
+      {futureGaps.length === 0 ? (
+        <div className="text-center py-8">
+          <CheckCircle2 size={32} className="mx-auto mb-2" style={{ color: '#2c6a3e' }} />
+          <div className="text-sm font-medium">All upcoming hours have adequate coverage</div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {futureGaps.map((gap, idx) => {
+            const reason = idx % 3 === 0 ? 'No assignment after volunteer marked unavailable' : idx % 3 === 1 ? 'Roster published with under-staffing' : 'Volunteer cancelled within 24 hours';
+            return (
+              <div key={idx} className="p-4 rounded-lg flex items-center gap-4" style={{ backgroundColor: gap.level === 'unmanned' ? COLORS.redLight : COLORS.amberLight, border: `1px solid ${gap.level === 'unmanned' ? COLORS.red : COLORS.amber}40` }}>
+                <div>
+                  <div className="text-2xl font-light" style={{ fontFamily: 'Georgia, serif', color: gap.level === 'unmanned' ? COLORS.red : '#9a6b1f' }}>
+                    {gap.durationMinutes}<span className="text-sm">min</span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold">{formatDateLong(new Date(gap.date))}</div>
+                  <div className="text-xs mt-0.5">
+                    {String(gap.startHour).padStart(2, '0')}:00 – {String(gap.endHour).padStart(2, '0')}:00 · {gap.level === 'unmanned' ? 'No volunteers' : '1 volunteer only'}
+                  </div>
+                  <div className="text-[11px] italic mt-1" style={{ color: COLORS.inkMuted }}>Reason: {reason}</div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Button size="sm" variant="primary"><Megaphone size={12} /> Broadcast</Button>
+                  <Button size="sm" variant="secondary">Assign</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ===== VOLUNTEERS PAGE =====
+function VolunteersPage({ volunteers, role }) {
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterSeniority, setFilterSeniority] = useState('All');
+  const [filterLeader, setFilterLeader] = useState(false);
+  const [selected, setSelected] = useState(null);
+  
+  const filtered = volunteers.filter(v => {
+    if (search && !v.fullName.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterStatus !== 'All' && v.status !== filterStatus) return false;
+    if (filterSeniority !== 'All' && v.seniority !== filterSeniority) return false;
+    if (filterLeader && !v.shiftLeaderEligible) return false;
+    return true;
+  });
+  
+  if (selected) return <VolunteerProfile volunteer={selected} onBack={() => setSelected(null)} role={role} />;
+  
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Volunteers" subtitle={`${filtered.length} of ${volunteers.length} · ${volunteers.filter(v => v.status === 'Active' && v.shiftLeaderEligible).length} leader-eligible`} />
+      
+      <Card className="p-3 flex items-center gap-3 flex-wrap">
+        <div className="flex-1 min-w-[200px] flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: COLORS.paperWarm }}>
+          <Search size={14} style={{ color: COLORS.inkMuted }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name…" className="flex-1 bg-transparent outline-none text-sm" />
+        </div>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-1.5 rounded-lg text-sm" style={{ backgroundColor: COLORS.paperWarm, border: 'none' }}>
+          <option>All</option>
+          {STATUS_LEVELS.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select value={filterSeniority} onChange={e => setFilterSeniority(e.target.value)} className="px-3 py-1.5 rounded-lg text-sm" style={{ backgroundColor: COLORS.paperWarm, border: 'none' }}>
+          <option>All</option>
+          {SENIORITY_LEVELS.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <button onClick={() => setFilterLeader(!filterLeader)} className="px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition" style={{ backgroundColor: filterLeader ? COLORS.amberLight : COLORS.paperWarm, color: filterLeader ? '#9a6b1f' : COLORS.inkSoft, fontWeight: filterLeader ? 600 : 500 }}>
+          <Star size={12} fill={filterLeader ? COLORS.amber : 'none'} />
+          Leader-eligible only
+        </button>
+        {role === 'admin' && <Button size="sm"><Plus size={14} /> Add Volunteer</Button>}
+      </Card>
+      
+      <Card>
+        <table className="w-full text-sm">
+          <thead style={{ backgroundColor: COLORS.paperWarm, borderBottom: `1px solid ${COLORS.border}` }}>
+            <tr className="text-left text-xs">
+              <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Name</th>
+              <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>ID</th>
+              <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Status</th>
+              <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Seniority</th>
+              <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Lead-Eligible</th>
+              <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Languages</th>
+              <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Phone</th>
+              <th className="p-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.slice(0, 30).map(v => (
+              <tr key={v.id} style={{ borderBottom: `1px solid ${COLORS.borderSoft}` }} className="hover:bg-orange-50/30 cursor-pointer" onClick={() => setSelected(v)}>
+                <td className="p-3 font-medium flex items-center gap-1.5">
+                  {v.shiftLeaderEligible && <Star size={11} style={{ color: COLORS.amber }} fill={COLORS.amber} />}
+                  {v.fullName}
+                </td>
+                <td className="p-3 text-xs" style={{ color: COLORS.inkMuted }}>{v.internalId}</td>
+                <td className="p-3"><Badge color={v.status === 'Active' ? 'green' : v.status === 'On Leave' ? 'amber' : 'neutral'}>{v.status}</Badge></td>
+                <td className="p-3"><Badge color={v.seniority === 'Senior' ? 'primary' : v.seniority === 'Trainee' ? 'amber' : 'neutral'}>{v.seniority}</Badge></td>
+                <td className="p-3">{v.shiftLeaderEligible ? <Badge color="amber">Yes</Badge> : <span className="text-xs" style={{ color: COLORS.inkMuted }}>—</span>}</td>
+                <td className="p-3 text-xs">{v.languages.join(', ')}</td>
+                <td className="p-3 text-xs">{v.phone}</td>
+                <td className="p-3 text-xs"><span style={{ color: COLORS.primary }}>View →</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filtered.length > 30 && <div className="p-3 text-xs text-center" style={{ color: COLORS.inkMuted, borderTop: `1px solid ${COLORS.borderSoft}` }}>Showing 30 of {filtered.length}.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function VolunteerProfile({ volunteer, onBack, role }) {
+  const [unavailable] = useState(['2026-05-15', '2026-05-22']);
+  const icsUrl = `https://app.befrienders.org.my/ics/${volunteer.id}/abc123token.ics`;
+  
+  return (
+    <div className="space-y-4">
+      <button onClick={onBack} className="text-sm flex items-center gap-1" style={{ color: COLORS.primary }}>
+        <ChevronLeft size={14} /> Back to volunteers
+      </button>
+      <PageHeader title={volunteer.fullName} subtitle={`${volunteer.internalId} · ${volunteer.seniority}${volunteer.shiftLeaderEligible ? ' · Leader-eligible' : ''}`} />
+      
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="col-span-2 p-5">
+          <h3 className="font-semibold mb-4">Personal Details</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Full name" value={volunteer.fullName} />
+            <Field label="Preferred name" value={volunteer.preferredName} />
+            <Field label="Email" value={volunteer.email} />
+            <Field label="Phone" value={volunteer.phone} />
+            <Field label="Emergency contact" value={volunteer.emergencyContactName} />
+            <Field label="Emergency phone" value={volunteer.emergencyContactPhone} />
+            <Field label="Languages" value={volunteer.languages.join(', ')} />
+            <Field label="Joined" value={volunteer.joinedDate} />
+            <Field label="Status" value={volunteer.status} />
+            <Field label="Seniority" value={volunteer.seniority} />
+            <Field label="Shift Leader eligible" value={volunteer.shiftLeaderEligible ? 'Yes' : 'No'} />
+            <Field label="Monthly target" value={`${volunteer.monthlyHourTarget} hours`} />
+          </div>
+          {role === 'admin' && (
+            <div className="flex justify-end gap-2 mt-5 pt-4" style={{ borderTop: `1px solid ${COLORS.borderSoft}` }}>
+              <Button variant="secondary" size="sm">Cancel</Button>
+              <Button size="sm"><Edit2 size={12} /> Edit profile</Button>
+            </div>
+          )}
+        </Card>
+        
+        <div className="space-y-4">
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock size={16} style={{ color: COLORS.primary }} />
+              <h3 className="font-semibold">Recorded Unavailability</h3>
+            </div>
+            <p className="text-xs mb-3" style={{ color: COLORS.inkMuted }}>Manager-recorded blocked dates</p>
+            <div className="space-y-1.5">
+              {unavailable.map(d => (
+                <div key={d} className="text-sm py-2 px-3 rounded-md flex items-center justify-between" style={{ backgroundColor: COLORS.redLight }}>
+                  <span>{formatDateLong(new Date(d))}</span>
+                  <button className="text-xs" style={{ color: COLORS.red }}>Remove</button>
+                </div>
+              ))}
+            </div>
+            <Button size="sm" variant="secondary" className="mt-3 w-full"><Plus size={12} /> Add blocked date</Button>
+          </Card>
+          
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Mail size={16} style={{ color: COLORS.primary }} />
+              <h3 className="font-semibold">Calendar Subscription</h3>
+            </div>
+            <p className="text-xs mb-3" style={{ color: COLORS.inkMuted }}>Share this link with the volunteer to subscribe in their phone calendar</p>
+            <div className="text-xs p-2 rounded-md font-mono break-all" style={{ backgroundColor: COLORS.paperWarm, color: COLORS.inkSoft }}>{icsUrl}</div>
+            <Button size="sm" variant="secondary" className="mt-2 w-full"><Copy size={12} /> Copy URL</Button>
+            <Button size="sm" variant="primary" className="mt-2 w-full"><Mail size={12} /> Email to volunteer</Button>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <div className="text-xs mb-1" style={{ color: COLORS.inkMuted }}>{label}</div>
+      <div className="px-3 py-2 rounded-lg text-sm" style={{ backgroundColor: COLORS.paperWarm, border: `1px solid ${COLORS.border}` }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// ===== BROADCASTS PAGE =====
+function BroadcastsPage({ volunteers, broadcasts }) {
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Urgent Broadcasts" subtitle="Auto-fired and manual gap-coverage alerts" />
+      
+      <Card className="p-5" style={{ backgroundColor: COLORS.primaryLight, border: `1px solid ${COLORS.primary}` }}>
+        <div className="flex items-start gap-3">
+          <Megaphone size={20} style={{ color: COLORS.primary }} />
+          <div className="flex-1">
+            <h3 className="font-semibold" style={{ color: COLORS.primaryDark }}>How broadcasts work</h3>
+            <p className="text-sm mt-1" style={{ color: COLORS.primaryDark }}>
+              When a coverage gap exists within 1–3 hours of the affected hour (admin-configurable), the system auto-emails qualified volunteers asking who can cover. The first to confirm gets the slot. Manager can also fire a broadcast manually for any future gap. Since volunteer login is disabled in v1, "responding" means the volunteer replies to the email and the manager logs the assignment.
+            </p>
+          </div>
+        </div>
+      </Card>
+      
+      <Card>
+        <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: COLORS.border }}>
+          <h3 className="font-semibold">Broadcast History</h3>
+          <Button size="sm"><Megaphone size={14} /> Manual broadcast</Button>
+        </div>
+        <div className="divide-y" style={{ borderColor: COLORS.borderSoft }}>
+          {broadcasts.map(b => (
+            <div key={b.id} className="p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: b.status === 'open' ? COLORS.amberLight : COLORS.greenLight }}>
+                <Megaphone size={16} style={{ color: b.status === 'open' ? '#9a6b1f' : '#2c6a3e' }} />
+              </div>
+              <div className="flex-1">
+                <div className="font-medium text-sm">{formatDateLong(new Date(b.date))} · {String(b.startHour).padStart(2, '0')}:00–{String(b.endHour).padStart(2, '0')}:00</div>
+                <div className="text-xs mt-0.5" style={{ color: COLORS.inkMuted }}>
+                  Fired {new Date(b.firedAt).toLocaleString('en-GB')}
+                  {b.respondedById && ` · Resolved by ${volunteers.find(v => v.id === b.respondedById)?.fullName}`}
+                </div>
+              </div>
+              <Badge color={b.status === 'open' ? 'amber' : 'green'}>{b.status === 'open' ? 'AWAITING RESPONSE' : 'RESOLVED'}</Badge>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ===== REPORTS PAGE =====
+function ReportsPage({ volunteers, assignments, dayLeads, gaps, auditLog, role }) {
+  const [tab, setTab] = useState('sla');
+  
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Reports" subtitle="Coverage SLA, hours, leadership, audit trail" />
+      
+      <div className="flex gap-1 p-1 rounded-lg w-fit" style={{ backgroundColor: COLORS.paperWarm }}>
+        {[
+          { id: 'sla', label: 'Coverage SLA' },
+          { id: 'hours', label: 'Volunteer Hours' },
+          { id: 'leaders', label: 'Day Leadership' },
+          ...(role === 'admin' ? [{ id: 'audit', label: 'Audit Log' }] : []),
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} className="px-4 py-1.5 rounded-md text-sm font-medium" style={{ backgroundColor: tab === t.id ? COLORS.card : 'transparent', color: tab === t.id ? COLORS.primary : COLORS.inkSoft, boxShadow: tab === t.id ? '0 1px 2px rgba(0,0,0,0.06)' : 'none' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      
+      {tab === 'sla' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard label="Double-Manned Coverage" value="91.4%" hint="last 30 days" color="green" icon={Shield} />
+            <StatCard label="Total Gap Hours" value={Math.round(gaps.reduce((s, g) => s + g.durationMinutes, 0) / 60)} hint="last 30 days" color="amber" icon={AlertTriangle} />
+            <StatCard label="Auto-Resolved Broadcasts" value="2 of 3" hint="67% response rate" color="amber" icon={Megaphone} />
+          </div>
+          <Card className="p-5">
+            <h3 className="font-semibold mb-1">Monthly Coverage Trend</h3>
+            <p className="text-xs mb-4" style={{ color: COLORS.inkMuted }}>Board-ready report · last 6 months</p>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={[
+                { month: 'Dec', coverage: 88.1 },
+                { month: 'Jan', coverage: 89.5 },
+                { month: 'Feb', coverage: 92.4 },
+                { month: 'Mar', coverage: 90.2 },
+                { month: 'Apr', coverage: 93.1 },
+                { month: 'May', coverage: 91.4 },
+              ]}>
+                <CartesianGrid strokeDasharray="3 3" stroke={COLORS.borderSoft} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: COLORS.inkMuted }} stroke={COLORS.border} />
+                <YAxis domain={[80, 100]} tick={{ fontSize: 11, fill: COLORS.inkMuted }} stroke={COLORS.border} />
+                <Tooltip contentStyle={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 8, fontSize: 12 }} />
+                <Bar dataKey="coverage" fill={COLORS.primary} radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </div>
+      )}
+      
+      {tab === 'hours' && (
+        <Card className="p-5">
+          <h3 className="font-semibold mb-1">Volunteer Hours · This Month</h3>
+          <p className="text-xs mb-4" style={{ color: COLORS.inkMuted }}>Actual vs target. Helps spot under- and over-engaged volunteers.</p>
+          <div className="space-y-2">
+            {volunteers.filter(v => v.status === 'Active').slice(0, 12).map((v, i) => {
+              const hours = 4 + (i * 7) % 24;
+              const pct = Math.min(100, Math.round(hours / v.monthlyHourTarget * 100));
+              return (
+                <div key={v.id} className="flex items-center gap-3">
+                  <div className="w-44 text-sm flex items-center gap-1.5">
+                    {v.shiftLeaderEligible && <Star size={11} style={{ color: COLORS.amber }} fill={COLORS.amber} />}
+                    {v.fullName}
+                  </div>
+                  <div className="flex-1 h-6 rounded-md relative overflow-hidden" style={{ backgroundColor: COLORS.paperWarm }}>
+                    <div className="absolute inset-y-0 left-0 flex items-center px-2 text-[11px] font-medium text-white" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: pct >= 100 ? COLORS.green : pct >= 50 ? COLORS.amber : COLORS.red }}>
+                      {hours}h
+                    </div>
+                  </div>
+                  <div className="w-20 text-xs text-right" style={{ color: COLORS.inkMuted }}>target {v.monthlyHourTarget}h</div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+      
+      {tab === 'leaders' && (
+        <Card className="p-5">
+          <h3 className="font-semibold mb-1">Day Leadership · Last 30 Days</h3>
+          <p className="text-xs mb-4" style={{ color: COLORS.inkMuted }}>Days led, by volunteer. Gaps highlight days without a designated lead.</p>
+          
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <StatCard label="Days With Lead" value={Object.keys(dayLeads).length} hint="of 42 days seeded" color="green" icon={Star} />
+            <StatCard label="Days Without Lead" value={42 - Object.keys(dayLeads).length} hint="needing assignment" color="amber" icon={AlertTriangle} />
+          </div>
+          
+          <div className="text-xs font-medium mb-2" style={{ color: COLORS.inkSoft }}>Top day leaders</div>
+          <div className="space-y-2">
+            {(() => {
+              const counts = {};
+              Object.values(dayLeads).forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+              return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([id, count]) => {
+                const v = volunteers.find(x => x.id === id);
+                if (!v) return null;
+                return (
+                  <div key={id} className="flex items-center gap-3 p-2 rounded-md" style={{ backgroundColor: COLORS.paperWarm }}>
+                    <Star size={14} style={{ color: COLORS.amber }} fill={COLORS.amber} />
+                    <span className="flex-1 text-sm font-medium">{v.fullName}</span>
+                    <Badge color="amber">{count} days</Badge>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </Card>
+      )}
+      
+      {tab === 'audit' && (
+        <Card>
+          <table className="w-full text-sm">
+            <thead style={{ backgroundColor: COLORS.paperWarm, borderBottom: `1px solid ${COLORS.border}` }}>
+              <tr className="text-left text-xs">
+                <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>When</th>
+                <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Who</th>
+                <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Action</th>
+                <th className="p-3 font-medium" style={{ color: COLORS.inkMuted }}>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLog.map(entry => (
+                <tr key={entry.id} style={{ borderBottom: `1px solid ${COLORS.borderSoft}` }}>
+                  <td className="p-3 text-xs" style={{ color: COLORS.inkMuted }}>{new Date(entry.when).toLocaleString('en-GB')}</td>
+                  <td className="p-3"><Badge>{entry.who}</Badge></td>
+                  <td className="p-3 font-medium">{entry.action}</td>
+                  <td className="p-3 text-sm" style={{ color: COLORS.inkSoft }}>{entry.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ===== SETTINGS PAGE =====
+function SettingsPage({ blocks, setBlocks }) {
+  const [gapThreshold, setGapThreshold] = useState(30);
+  const [broadcastWindow, setBroadcastWindow] = useState(2);
+  const [advanceNotice, setAdvanceNotice] = useState(24);
+  const [restMin, setRestMin] = useState(12);
+  
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Settings" subtitle="System rules, block library, and policies" />
+      
+      <Card className="p-5">
+        <h3 className="font-semibold mb-1">Block Library</h3>
+        <p className="text-xs mb-4" style={{ color: COLORS.inkMuted }}>Named time blocks managers use when assigning volunteers. Configurable.</p>
+        <div className="space-y-2">
+          {blocks.map(b => {
+            const p = BLOCK_PALETTE[b.paletteIdx];
+            return (
+              <div key={b.id} className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: COLORS.paperWarm }}>
+                <div className="w-1 h-10 rounded-full" style={{ backgroundColor: p.border }}></div>
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{b.name}</div>
+                  <div className="text-xs" style={{ color: COLORS.inkMuted }}>{String(b.startHour).padStart(2, '0')}:00 – {String(b.endHour % 24 || 24).padStart(2, '0')}:00 · {b.endHour - b.startHour} hours</div>
+                </div>
+                <Button size="sm" variant="ghost"><Edit2 size={12} /></Button>
+              </div>
+            );
+          })}
+          <Button size="sm" variant="secondary" className="w-full mt-2"><Plus size={12} /> Add new block</Button>
+        </div>
+      </Card>
+      
+      <Card className="p-5">
+        <h3 className="font-semibold mb-1">Coverage Rules</h3>
+        <p className="text-xs mb-4" style={{ color: COLORS.inkMuted }}>The invariants the system defends</p>
+        <div className="space-y-4">
+          <SettingSlider label="Gap flag threshold" value={gapThreshold} setValue={setGapThreshold} min={15} max={60} step={5} unit="min" hint="Flag continuous intervals longer than this when coverage is below 2 volunteers." />
+          <SettingSlider label="Auto-broadcast trigger window" value={broadcastWindow} setValue={setBroadcastWindow} min={1} max={3} step={0.5} unit="hr before" hint="Auto-fire urgent broadcast when a gap exists this close to the affected hour." />
+          <SettingSlider label="Min advance notice for swaps/changes" value={advanceNotice} setValue={setAdvanceNotice} min={0} max={72} step={6} unit="hr" hint="Manager warned if making changes within this window (urgent broadcasts bypass)." />
+          <SettingSlider label="Min rest between volunteer shifts" value={restMin} setValue={setRestMin} min={6} max={24} step={1} unit="hr" hint="System warns if a volunteer is scheduled within this window of a previous assignment." />
+        </div>
+      </Card>
+      
+      <Card className="p-5">
+        <h3 className="font-semibold mb-1">Other</h3>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between py-2"><span>24/7 coverage mode</span><Badge color="green">Enabled · universal min 2</Badge></div>
+          <div className="flex items-center justify-between py-2"><span>Volunteer login</span><Badge color="amber">Disabled in v1</Badge></div>
+          <div className="flex items-center justify-between py-2"><span>Public holidays</span><Badge color="green">Malaysia + KL state loaded</Badge></div>
+          <div className="flex items-center justify-between py-2"><span>Daily coverage email digest</span><Badge color="green">Enabled · 7am</Badge></div>
+          <div className="flex items-center justify-between py-2"><span>Weekly volunteer roster digest</span><Badge color="green">Enabled · Monday 8am</Badge></div>
+          <div className="flex items-center justify-between py-2"><span>Multi-chapter mode</span><Badge>Single chapter (KL)</Badge></div>
+          <div className="flex items-center justify-between py-2"><span>Time zone</span><Badge>Asia/Kuala_Lumpur (UTC+8)</Badge></div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function SettingSlider({ label, value, setValue, min, max, step, unit, hint }) {
+  return (
+    <div>
+      <div className="flex justify-between mb-1.5">
+        <label className="text-sm font-medium">{label}</label>
+        <span className="text-sm" style={{ color: COLORS.primary, fontWeight: 600 }}>{value} {unit}</span>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={e => setValue(+e.target.value)} className="w-full" style={{ accentColor: COLORS.primary }} />
+      <p className="text-xs mt-1" style={{ color: COLORS.inkMuted }}>{hint}</p>
+    </div>
+  );
+}
+
+
+// Mount
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+
+</script>
+</body>
+</html>
